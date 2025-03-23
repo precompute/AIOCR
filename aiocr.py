@@ -18,7 +18,7 @@
 
 # ** Commentary
 # This program:
-# 1. Creates a random filename, christened by pwgen
+# 1. Creates a random filename
 # 2. Takes a screenshot with scrot and stores it in /tmp/OCR
 # 3. Gets its mimetype (ancient artifact)
 # 4. encodes to base64
@@ -38,15 +38,20 @@ import subprocess
 import base64
 import os  # Only used for os.makedirs and os.path.join
 import requests
+import secrets
+import string
+import openai
+# /// script
+# dependencies = [
+#     "openai",
+#     "requests",
+# ]
+# ///
 
 def generate_filename():
-    """Generates a random filename using pwgen."""
-    try:
-        result = subprocess.run(['pwgen', '-s', '10', '-n', '1'], capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Error generating filename: {e}. Make sure pwgen is installed.")
-        exit(1)
+    """Generates a random filename using Python's secrets module."""
+    characters = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(characters) for _ in range(10))
 
 def capture_screenshot(filepath):
     """Captures a screenshot using scrot and saves it to the given filepath."""
@@ -69,50 +74,46 @@ def get_image_mimetype(filepath):
       print(f"Error getting file type: {e}")
       exit(1)
 
-
 def encode_image_to_base64(filepath):
     """Encodes the image at the given filepath to base64."""
     try:
-        result = subprocess.run(['base64', '-w', '0', filepath], capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        with open(filepath, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+            return encoded_string
+    except IOError as e:
         print(f"Error Encoding File: {e}")
         exit(1)
 
 def perform_ocr(image_base64, mime_type):
-    """Performs OCR on the image using requests and OpenRouter."""
-    openrouter_key = "YOUR_KEY_HERE"
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {openrouter_key}"
-    }
-    data = {
-        "model": "qwen/qwen2.5-vl-72b-instruct:free",
-        "messages": [
+    """Performs OCR on the image using the openai spec and OpenRouter."""
+    client = openai.OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key="YOUR_API_KEY_HERE",
+    )
+
+    completion = client.chat.completions.create(
+        extra_headers={},
+        extra_body={},
+        model="qwen/qwen2.5-vl-72b-instruct:free",
+        messages=[
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "OCR this image, include newlines.  Use Org-Mode syntax, but don't make headings and don't fence the output in backticks.  Guide to Org-Mode syntax: Surround with / for italics, * for bold, _ for underline, ~ for single line code.  For multiple lines of code, surround with #+begin_src lang and #+end_src.  For quotes, surround with #+begin_quote and #+end_quote.  For superscript, surround with ^{ and }.  For subscript, surround with _{ and }."},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_base64}"}}
+                    {
+                        "type": "text",
+                        "text": "OCR this image, include newlines.  Use Org-Mode syntax, but don't make headings and don't fence the output in backticks.  Guide to Org-Mode syntax: Surround with / for italics, * for bold, _ for underline, ~ for single line code.  For multiple lines of code, surround with #+begin_src lang and #+end_src.  For quotes, surround with #+begin_quote and #+end_quote.  For superscript, surround with ^{ and }.  For subscript, surround with _{ and }."
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{image_base64}"
+                        }
+                    }
                 ]
             }
         ]
-    }
-
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()['choices'][0]['message']['content']
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error during OCR request: {e}")
-        print(f"Response Content: {response.text}")
-        exit(1)
-    except KeyError as e:
-        print(f"KeyError: {e}, Response: {response.text}")
-        exit(1)
-
+    )
+    return completion.choices[0].message.content
 
 def copy_to_clipboard(text):
     """Copies the text to the clipboard using xclip."""

@@ -1,7 +1,7 @@
 #+HTML: <img src="header.webp" align="center">
 * AIOCR : OCR Images via API and copy to clipboard
 This program:
-1. Creates a random filename, christened by ~pwgen~
+1. Creates a random filename
 2. Takes a screenshot with ~scrot~ and stores it in /tmp/OCR
 3. Gets its mimetype (ancient artifact)
 4. encodes to ~base64~
@@ -23,6 +23,7 @@ Requires the following tools:
 You need to s/YOUR_API_KEY_HERE/[ API key from https://openrouter.ai/settings/keys ]/
 
 ** Usage
+Run with =uv --cache-dir=/tmp/uv run aiocr.py=
 Bind it to a shortcut.  Your cursor will change, this is ~scrot~ ’s  doing.  Select an area and it will (hopefully) be transcribed.
 
 ** Caveats
